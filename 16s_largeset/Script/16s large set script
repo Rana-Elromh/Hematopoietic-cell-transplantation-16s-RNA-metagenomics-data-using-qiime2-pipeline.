@@ -1,0 +1,365 @@
+# 16s large set
+1.# Get the featured table.
+wget \
+-O 'feature-table.qza' \
+'https://docs.qiime2.org/jupyterbooks/cancer-microbiome-intervention-tutorial/data/030-tutorial-downstream/010-filtering/feature-table.qza'
+
+2.# #Download the corresponding sequences
+wget \
+-O 'rep-seqs.qza' \
+'https://docs.qiime2.org/jupyterbooks/cancer-microbiome-intervention-tutorial/data/030-tutorial-downstream/010-filtering
+/rep-seqs.qza'
+
+3.# View
+qiime tools view feature-table.qza then rep-seqs.qza
+
+3.# Generate updated summaries for the complete dataset:
+#Fetch metadata
+qiime metadata tabulate \
+--m-input-file sample-metadata.tsv \
+--o-visualization metadata-summ.qzv
+
+#Link it with feature table.
+qiime feature-table summarize \
+  --i-table feature-table.qza \
+  --m-sample-metadata-file sample-metadata.tsv \
+  --o-visualization table.qzv
+
+#Make another file for ASV sequences
+qiime feature-table tabulate-seqs \
+  --i-data rep-seqs.qza \
+  --o-visualization rep-seqs.qzv
+  
+
+  4. There are two gps in the metadata [auto-fmt and allo-fmt]we'll work on the auto one.
+
+  #filtering
+  qiime feature-table filter-samples \
+--i-table feature-table.qza \
+--m-metadata-file sample-metadata.tsv \
+--p-where 'autoFmtGroup IS NOT NULL' \
+--o-filtered-table autofmt-table.qza
+
+5. qzv file then view
+
+qiime feature-table summarize \
+--i-table autofmt-table.qza \
+--m-sample-metadata-file sample-metadata.tsv \
+--o-visualization autofmt-table-summ.qzv
+
+
+
+6.Refine our dataset to focus on the clinically relevant time window: from ten days before transplantation through seventy days post-transplantation. [The data is concentratedat this area then view 
+
+qiime feature-table filter-samples \
+--i-table autofmt-table.qza \
+--m-metadata-file sample-metadata.tsv \
+--p-where 'DayRelativeToNearestHCT BETWEEN -10 AND 70' \
+--o-filtered-table filtered-table-1.qza
+
+
+7. Visualize then view
+
+iime feature-table summarize \
+--i-table filtered-table-1.qza \
+--m-sample-metadata-file sample-metadata.tsv \
+--o-visualization filtered-table-1_summary.qzv
+
+
+8.Feature Prevalence Filtering
+
+qiime feature-table filter-features \
+--i-table filtered-table-1.qza \
+--p-min-samples 2 \
+--o-filtered-table filtered-table-2.qza
+
+
+
+9. Sequence Data Synchronization
+
+qiime feature-table filter-seqs \
+--i-data rep-seqs.qza \
+--i-table filtered-table-2.qza \
+--o-filtered-data filtered-sequences-1.qza
+
+10.Acquiring the Classification Tool
+We'll use a pre-trained Naive Bayes classifier trained on the Greengenes 13-8 database with sequences trimmed to the V4 region (515F/806R primers):
+
+wget \
+-O 'gg-13-8-99-515-806-nb-classifier.qza' \
+'https://docs.qiime2.org/jupyterbooks/cancer-microbiome-intervention-tutorial/data/030-tutorial-downstream/020-taxonomy/gg-13-8-99-515-806-nb-classifier.qza'
+
+
+
+11. Performing Taxonomic Classification
+
+qiime feature-classifier classify-sklearn \
+--i-classifier gg-13-8-99-515-806-nb-classifier.qza \
+--i-reads filtered-sequences-1.qza \
+--o-classification taxonomy.qza
+
+12. Creating Human-Readable Taxonomy Summaries
+
+qiime metadata tabulate \
+--m-input-file taxonomy.qza \
+--o-visualization taxonomy.qzv
+
+
+13.Filtering Strategy:
+Retain only phylum-level assignments: Removes poorly classified sequences
+Exclude organellar sequences: Eliminates chloroplast and mitochondrial DNA
+Remove unassigned sequences: Focuses on confidently classified features
+
+qiime taxa filter-table \
+--i-table filtered-table-2.qza \
+--i-taxonomy taxonomy.qza \
+--p-mode contains \
+--p-include p__ \
+--p-exclude 'p__;,Chloroplast,Mitochondria' \
+--o-filtered-table filtered-table-3.qza
+
+
+
+14 Sequence Depth Filtering for Reliability
+Exclude samples with fewer than 10,000 sequences, a threshold selected to balance sample retention with analytical reliability:
+
+qiime feature-table filter-samples \
+--i-table filtered-table-3.qza \
+--p-min-frequency 10000 \
+--o-filtered-table filtered-table-4.qza
+
+
+
+15. Final Sequence Data Optimization
+
+qiime feature-table filter-seqs \
+--i-data rep-seqs.qza \
+--i-table filtered-table-4.qza \
+--o-filtered-data filtered-sequences-2.qza
+
+
+
+16. Visualizing Taxonomic Composition
+
+qiime taxa barplot \
+--i-table filtered-table-4.qza \
+--i-taxonomy taxonomy.qza \
+--m-metadata-file sample-metadata.tsv \
+--o-visualization taxa-bar-plots-1.qzv
+
+
+#QIIME2 Diversity Analysis and Longitudinal Studies
+1. Phase 1: Constructing Phylogenetic Relationships. GET 4 FILES 
+
+qiime phylogeny align-to-tree-mafft-fasttree \
+--i-sequences filtered-sequences-2.qza \
+--output-dir phylogeny-align-to-tree-mafft-fasttree
+
+
+17. Phase 2: Determining Optimal Sampling Depth
+
+qiime feature-table summarize \
+--i-table filtered-table-4.qza \
+--m-sample-metadata-file sample-metadata.tsv \
+--o-visualization filtered-table-4-summ.qzv
+
+
+
+18. Alpha rarefaction curves 
+
+qiime diversity alpha-rarefaction \
+--i-table filtered-table-4.qza \
+--p-metrics shannon \
+--m-metadata-file sample-metadata.tsv \
+--p-max-depth 33000 \
+--o-visualization shannon-rarefaction-plot.qzv
+
+
+19.Beta refraction
+
+qiime diversity beta-rarefaction \
+--i-table filtered-table-4.qza \
+--p-metric braycurtis \
+--p-clustering-method nj \
+--p-sampling-depth 10000 \
+--m-metadata-file sample-metadata.tsv \
+--o-visualization braycurtis-rarefaction-plot.qzv
+
+#Phase 3: Comprehensive Diversity Analysis
+20.Required Inputs for Phylogenetic Diversity Analysis:
+
+qiime diversity core-metrics-phylogenetic \
+--i-phylogeny phylogeny-align-to-tree-mafft-fasttree/rooted_tree.qza \
+--i-table filtered-table-4.qza \
+--p-sampling-depth 10000 \
+--m-metadata-file sample-metadata.tsv \
+--output-dir diversity-core-metrics-phylogenetic
+
+
+Phase 4: Alpha Diversity Analysis - Understanding Within-Sample Richness
+21.Examine observed features (ASV richness) across different sample groupings:
+
+qiime diversity alpha-group-significance \
+--i-alpha-diversity diversity-core-metrics-phylogenetic/observed_features_vector.qza \
+--m-metadata-file sample-metadata.tsv \
+--o-visualization alpha-group-sig-obs-feats.qzv
+
+22.Examine the overall temporal trend relative to bone marrow transplantation:
+
+qiime longitudinal linear-mixed-effects \
+--m-metadata-file sample-metadata.tsv diversity-core-metrics-phylogenetic/observed_features_vector.qza \
+--p-state-column DayRelativeToNearestHCT \
+--p-individual-id-column PatientID \
+--p-metric observed_features \
+--o-visualization lme-obs-features-HCT.qzv
+
+
+23.Fecal microbiota transplant intervention:
+
+qiime longitudinal linear-mixed-effects \
+--m-metadata-file sample-metadata.tsv diversity-core-metrics-phylogenetic/observed_features_vector.qza \
+--p-state-column day-relative-to-fmt \
+--p-individual-id-column PatientID \
+--p-metric observed_features \
+--o-visualization lme-obs-features-FMT.qzv
+
+
+24.Treatment Group Comparison
+
+qiime longitudinal linear-mixed-effects \
+--m-metadata-file sample-metadata.tsv diversity-core-metrics-phylogenetic/observed_features_vector.qza \
+--p-state-column day-relative-to-fmt \
+--p-group-columns autoFmtGroup \
+--p-individual-id-column PatientID \
+--p-metric observed_features \
+--o-visualization lme-obs-features-treatmentVScontrol.qzv
+
+
+Phase 5: Beta Diversity Visualization - Advanced Ordination
+25.UMAP ordinations for both weighted and unweighted UniFrac distances:
+
+qiime diversity umap \
+--i-distance-matrix diversity-core-metrics-phylogenetic/unweighted_unifrac_distance_matrix.qza \
+--o-umap uu-umap.qza
+qiime diversity umap \
+--i-distance-matrix diversity-core-metrics-phylogenetic/weighted_unifrac_distance_matrix.qza \
+--o-umap wu-umap.qza
+
+
+26.Integrating Multiple Data Perspectives
+
+qiime metadata tabulate \
+--m-input-file sample-metadata.tsv uu-umap.qza \ diversity-core-metrics-phylogenetic/faith_pd_vector.qza \ diversity-core-metrics-phylogenetic/evenness_vector.qza \ diversity-core-metrics-phylogenetic/shannon_vector.qza \
+--o-visualization expanded-metadata-summ.qzv
+
+
+27.Enhanced Taxonomic Visualizations
+
+qiime taxa barplot \
+--i-table filtered-table-4.qza \ 
+--i-taxonomy taxonomy.qza \
+--m-metadata-file sample-metadata.tsv uu-umap.qza \ diversity-core-metrics-phylogenetic/faith_pd_vector.qza \ diversity-core-metrics-phylogenetic/evenness_vector.qza \ diversity-core-metrics-phylogenetic/shannon_vector.qza \
+--o-visualization taxa-bar-plots-2.qzv \
+
+
+28.Time-Series Ordination Plots
+#Unweighted UniFrac UMAP
+
+qiime emperor plot \
+  --i-pcoa uu-umap.qza \
+  --m-metadata-file sample-metadata.tsv \
+  --m-metadata-file diversity-core-metrics-phylogenetic/faith_pd_vector.qza \
+  --m-metadata-file diversity-core-metrics-phylogenetic/evenness_vector.qza \
+  --m-metadata-file diversity-core-metrics-phylogenetic/shannon_vector.qza \
+  --p-custom-axes week-relative-to-hct \
+  --o-visualization uu-umap-emperor-w-time.qzv
+
+  #Weighted UniFrac UMAP
+  qiime emperor plot \
+  --i-pcoa wu-umap.qza \
+  --m-metadata-file sample-metadata.tsv \
+  --m-metadata-file diversity-core-metrics-phylogenetic/faith_pd_vector.qza \
+  --m-metadata-file diversity-core-metrics-phylogenetic/evenness_vector.qza \
+  --m-metadata-file diversity-core-metrics-phylogenetic/shannon_vector.qza \
+  --p-custom-axes week-relative-to-hct \
+  --o-visualization wu-umap-emperor-w-time.qzv
+
+#Unweighted UniFrac PCoA
+qiime emperor plot \
+  --i-pcoa diversity-core-metrics-phylogenetic/unweighted_unifrac_pcoa_results.qza \
+  --m-metadata-file sample-metadata.tsv \
+  --m-metadata-file diversity-core-metrics-phylogenetic/faith_pd_vector.qza \
+  --m-metadata-file diversity-core-metrics-phylogenetic/evenness_vector.qza \
+  --m-metadata-file diversity-core-metrics-phylogenetic/shannon_vector.qza \
+  --p-custom-axes week-relative-to-hct \
+  --o-visualization uu-pcoa-emperor-w-time.qzv
+
+  #Weighted UniFrac PCoA
+  qiime emperor plot \
+  --i-pcoa diversity-core-metrics-phylogenetic/weighted_unifrac_pcoa_results.qza \
+  --m-metadata-file sample-metadata.tsv \
+  --m-metadata-file diversity-core-metrics-phylogenetic/faith_pd_vector.qza \
+  --m-metadata-file diversity-core-metrics-phylogenetic/evenness_vector.qza \
+  --m-metadata-file diversity-core-metrics-phylogenetic/shannon_vector.qza \
+  --p-custom-axes week-relative-to-hct \
+  --o-visualization wu-pcoa-emperor-w-time.qzv
+
+
+
+29.Phase 6: Longitudinal Microbiome Analysis
+Taxonomic Aggregation to Genus Level
+
+qiime taxa collapse \
+--i-table filtered-table-4.qza \
+--i-taxonomy taxonomy.qza \
+--p-level 6 \
+--o-collapsed-table genus-table.qza
+
+
+30.Prevalence and Abundance Filtering
+
+qiime feature-table filter-features-conditionally \
+--i-table genus-table.qza \
+--p-prevalence 0.1 \
+--p-abundance 0.01 \
+--o-filtered-table filtered-genus-table.qza
+
+
+31.Relative Frequency Transformation
+
+qiime feature-table relative-frequency \
+--i-table filtered-genus-table.qza \
+--o-relative-frequency-table genus-rf-table.qza
+
+
+32.Volatility Analysis: Tracking Individual Trajectories
+Analysis Relative to Bone Marrow Transplantation
+
+qiime longitudinal volatility \
+--i-table genus-rf-table.qza \
+--p-state-column week-relative-to-hct \
+--m-metadata-file sample-metadata.tsv uu-umap.qza diversity-core-metrics-phylogenetic/faith_pd_vector.qza diversity-core-metrics-phylogenetic/evenness_vector.qza diversity-core-metrics-phylogenetic/shannon_vector.qza \
+--p-individual-id-column PatientID \
+--p-default-group-column autoFmtGroup \
+--o-visualization volatility-plot-1.qzv
+
+
+
+33.Analysis Relative to FMT Intervention
+
+qiime longitudinal volatility \
+--i-table genus-rf-table.qza \
+--p-state-column week-relative-to-fmt \
+--m-metadata-file sample-metadata.tsv uu-umap.qza diversity-core-metrics-phylogenetic/faith_pd_vector.qza diversity-core-metrics-phylogenetic/evenness_vector.qza diversity-core-metrics-phylogenetic/shannon_vector.qza \
+--p-individual-id-column PatientID \
+--p-default-group-column autoFmtGroup \
+--o-visualization volatility-plot-2.qzv
+
+
+34.Feature Volatility: Discovering Treatment-Responsive Taxa
+qiime longitudinal feature-volatility \
+--i-table filtered-genus-table.qza \
+--m-metadata-file sample-metadata.tsv uu-umap.qza diversity-core-metrics-phylogenetic/faith_pd_vector.qza diversity-core-metrics-phylogenetic/evenness_vector.qza diversity-core-metrics-phylogenetic/shannon_vector.qza \
+--p-state-column week-relative-to-fmt \
+--p-individual-id-column PatientID \
+--output-dir longitudinal-feature-volatility-2
