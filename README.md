@@ -1,2 +1,2 @@
 # Hematopoietic-cell-transplantation-16s-RNA-metagenomics-data-using-qiime2-pipeline.
-his project analyzes longitudinal gut microbiota data from hematopoietic cell transplantation (HCT) patients, using datasets from Liao et al., 2021. The focus is on understanding microbiome reconstitution after antibiotics and HCT, especially in samples from autologous fecal microbiota transplantation (Taur et al., 2018).
+This project analyzes longitudinal gut microbiota data from hematopoietic cell transplantation (HCT) patients, using datasets from Liao et al., 2021. The focus is on understanding microbiome reconstitution after antibiotics and HCT, especially in samples from autologous fecal microbiota transplantation (Taur et al., 2018).
